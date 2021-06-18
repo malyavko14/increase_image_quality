@@ -8,6 +8,7 @@ import numpy as np
 import os
 from keras.callbacks import ModelCheckpoint
 from matplotlib import pyplot as plt
+from skimage.metrics import structural_similarity as ssim
 
 
 def model():
@@ -49,35 +50,37 @@ class NeuralNetworkTraining:
             X, Y = self.image_conversion(image)
 
             SRCNN = model()
-            #SRCNN.load_weights('SRCNN_weights.hdf5')
-            weights_file = "SRCNN_weights.hdf5"
+            SRCNN.load_weights('SRCNN_weights.hdf5')
+            weights_file = "trained_images/SRCNN_weights.hdf5"
             checkpoint = ModelCheckpoint(weights_file, monitor='mean_squared_error', mode='max', verbose=1)
             SRCNN.fit(x=X, y=Y, batch_size=32, epochs=1000, callbacks=[checkpoint])
             folder = "C:\\Users\\vivo\PycharmProjects\increase_image_quality\\trained_images"
             shutil.move('input\\'+image, folder)
-
+class TestingNetwork:
+    def __init__(self, file_path):
 
 class SRCNNIncreaseImageQuality:
     def __init__(self, path_to_file, coefficient):
         self.__path_to_file = path_to_file
+        self.image = cv2.imread(self.__path_to_file)
         self.coefficient = coefficient
 
     def image_conversion(self):
-        image = cv2.imread(self.__path_to_file)
-        height, width, _ = image.shape
+        height, width, _ = self.image.shape
         new_height = int(height * self.coefficient)
         new_width = int(width * self.coefficient)
 
-        image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
-        cv2.imwrite('cubic.png', image)
+        image = cv2.resize(self.image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+        cubic = image
+
         image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
 
         Y = np.zeros((1, image.shape[0], image.shape[1], 1), dtype=float)
         Y[0, :, :, 0] = image[:, :, 0].astype(float) / 255
-        return Y, image
+        return Y, image, cubic
 
     def increase_image_quality(self):
-        Y, image = self.image_conversion()
+        Y, image, cubic_image = self.image_conversion()
         srcnn = model()
         srcnn.load_weights('SRCNN_weights.hdf5')
         output = srcnn.predict(Y, batch_size=1)
@@ -90,8 +93,12 @@ class SRCNNIncreaseImageQuality:
         image[:, :, 0] = output[0, :, :, 0]
         output_image = cv2.cvtColor(image, cv2.COLOR_YCrCb2BGR)
         tmp = self.__path_to_file.split('/')[-1]
-        cv2.imwrite(f'result/{tmp.split(".")[0]}_improved_quality.{tmp.split(".")[-1]}', output_image)
-
+        new_name = f'{tmp.split(".")[0]}_improved_quality.{tmp.split(".")[-1]}'
+        cv2.imwrite(f'result/{new_name}', output_image)
+        print(f'{new_name} \nParameters')
+        print(f'PRSM: {cv2.PSNR(cubic_image, output_image)}')
+        print(f'SSIM: {ssim(cubic_image, output_image, multichannel=True)}')
+        '''
         fig, axs = plt.subplots(1, 2, figsize=(40, 16))
         axs[0].imshow(cv2.cvtColor(cv2.imread(self.__path_to_file), cv2.COLOR_BGR2RGB))
         axs[0].set_title('Original')
@@ -103,7 +110,7 @@ class SRCNNIncreaseImageQuality:
 
         fig.savefig('output'.format(tmp.split(".")[-1]))
         plt.close()
+        '''
 
-
-SRCNNIncreaseImageQuality('input/ex.jpg', 2).increase_image_quality()
+SRCNNIncreaseImageQuality('input/f33cc2f847cd.jpg', 2).increase_image_quality()
 #NeuralNetworkTraining('input').neural_network_training()
